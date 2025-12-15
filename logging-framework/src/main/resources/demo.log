@@ -1,0 +1,4 @@
+[INFO] 2025-12-15T19:01:27.983410300Z - This message goes to both console and file
+[ERROR] 2025-12-15T19:01:27.984404600Z - This error also goes to both destinations
+[INFO] 2025-12-15T19:03:09.560801500Z - This message goes to both console and file
+[ERROR] 2025-12-15T19:03:09.560801500Z - This error also goes to both destinations
