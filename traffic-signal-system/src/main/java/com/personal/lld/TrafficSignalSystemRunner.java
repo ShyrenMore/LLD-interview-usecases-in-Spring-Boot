@@ -3,13 +3,9 @@ package com.personal.lld;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-class Main {
+@SpringBootApplication
+class TrafficSignalSystemRunner {
     public static void main(String[] args) {
-        SpringApplication.run(Main.class, args);
+        SpringApplication.run(TrafficSignalSystemRunner.class, args);
     }
 }
