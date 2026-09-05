@@ -1,13 +1,14 @@
 package com.personal.lld.core;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString
 public class LogConfiguration {
-
-    private LogLevel rootLevel = LogLevel.INFO; // Default level
+    private LogLevel rootLevel = LogLevel.INFO;
 }

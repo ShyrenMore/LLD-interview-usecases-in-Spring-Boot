@@ -2,17 +2,15 @@ package com.personal.lld.formatter;
 
 import com.personal.lld.core.LogMessage;
 
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 
-/**
- * Simple formatter that formats log messages in a basic pattern.
- * Default format: "[LEVEL] TIMESTAMP - MESSAGE"
- */
 public class SimpleFormatter implements LogFormatter {
-    private String pattern;
-    private String dateFormat;
-    // Business use can be implemented later
-    private DateTimeFormatter dateTimeFormatter;
+
+    private volatile String pattern;
+    private volatile String dateFormat;
+    private volatile DateTimeFormatter dateTimeFormatter;
 
     public SimpleFormatter() {
         this("[%LEVEL] %TIMESTAMP - %MESSAGE");
@@ -20,29 +18,31 @@ public class SimpleFormatter implements LogFormatter {
 
     public SimpleFormatter(String pattern) {
         this.pattern = pattern;
-        this.dateFormat = "yyyy-MM-dd HH:mm:ss";
-        this.dateTimeFormatter = DateTimeFormatter.ofPattern(dateFormat);
+        setDateFormat("yyyy-MM-dd HH:mm:ss");
     }
 
     @Override
     public String format(LogMessage message) {
-        if (pattern == null || pattern.isEmpty()) {
-            return String.format("[%s] %s - %s",
-                    message.getLevel(),
-                    message.getTimestamp().toString(),
-                    message.getMessage());
-        }
+        Objects.requireNonNull(message, "message");
+
+        String timestamp = dateTimeFormatter
+                .withZone(ZoneOffset.UTC)
+                .format(message.getTimestamp());
+
+        String source = message.getSource() != null ? message.getSource() : "";
+        String logger = message.getLoggerName() != null ? message.getLoggerName() : "";
 
         return pattern
                 .replace("%LEVEL", message.getLevel().toString())
-                .replace("%TIMESTAMP", message.getTimestamp().toString())
-                .replace("%MESSAGE", message.getMessage())
-                .replace("%SOURCE", message.getSource() != null ? message.getSource() : "");
+                .replace("%TIMESTAMP", timestamp)
+                .replace("%LOGGER", logger)
+                .replace("%SOURCE", source)
+                .replace("%MESSAGE", String.valueOf(message.getMessage()));
     }
 
     @Override
     public void setPattern(String pattern) {
-        this.pattern = pattern;
+        this.pattern = Objects.requireNonNull(pattern, "pattern");
     }
 
     @Override
@@ -52,7 +52,12 @@ public class SimpleFormatter implements LogFormatter {
 
     @Override
     public void setDateFormat(String dateFormat) {
-        this.dateFormat = dateFormat;
+        this.dateFormat = Objects.requireNonNull(dateFormat, "dateFormat");
         this.dateTimeFormatter = DateTimeFormatter.ofPattern(dateFormat);
+    }
+
+    @Override
+    public DateTimeFormatter getDateTimeFormatter() {
+        return dateTimeFormatter;
     }
 }

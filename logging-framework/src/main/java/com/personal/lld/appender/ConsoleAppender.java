@@ -1,27 +1,28 @@
 package com.personal.lld.appender;
 
-import com.personal.lld.formatter.LogFormatter;
 import com.personal.lld.core.LogLevel;
 import com.personal.lld.core.LogMessage;
-import com.personal.lld.formatter.SimpleFormatter;
+import com.personal.lld.formatter.LogFormatter;
 
 import java.io.PrintStream;
 
-/**
- * Appender that writes log messages to the console (System.out/System.err).
- */
-public class ConsoleAppender implements LogAppender {
-    private LogLevel level;
-    private LogFormatter formatter = new SimpleFormatter();
-    private PrintStream outputStream;
+public class ConsoleAppender extends AbstractAppender {
+
+    private final PrintStream outputStream;
+    private final PrintStream errorStream;
 
     public ConsoleAppender() {
-        this(LogLevel.DEBUG);
+        this(LogLevel.DEBUG, System.out, System.err, null);
     }
 
     public ConsoleAppender(LogLevel level) {
-        this.level = level;
-        this.outputStream = System.out;
+        this(level, System.out, System.err, null);
+    }
+
+    public ConsoleAppender(LogLevel level, PrintStream outputStream, PrintStream errorStream, LogFormatter formatter) {
+        super(level, formatter != null ? formatter : new com.personal.lld.formatter.SimpleFormatter());
+        this.outputStream = outputStream;
+        this.errorStream = errorStream;
     }
 
     @Override
@@ -30,42 +31,12 @@ public class ConsoleAppender implements LogAppender {
             return;
         }
 
-        String formattedMessage = formatter.format(message);
+        String formatted = getFormatter().format(message);
 
-        // Use System.err for ERROR and FATAL levels
         if (message.getLevel() == LogLevel.ERROR || message.getLevel() == LogLevel.FATAL) {
-            System.err.println(formattedMessage);
+            errorStream.println(formatted);
         } else {
-            outputStream.println(formattedMessage);
+            outputStream.println(formatted);
         }
-    }
-
-    @Override
-    public void setLevel(LogLevel level) {
-        this.level = level;
-    }
-
-    @Override
-    public LogLevel getLevel() {
-        return level;
-    }
-
-    @Override
-    public boolean isEnabled(LogLevel level) {
-        return level.isGreaterOrEqual(this.level);
-    }
-
-    @Override
-    public void setFormatter(LogFormatter formatter) {
-        this.formatter = formatter;
-    }
-
-    @Override
-    public LogFormatter getFormatter() {
-        return formatter;
-    }
-
-    public void setOutputStream(PrintStream outputStream) {
-        this.outputStream = outputStream;
     }
 }

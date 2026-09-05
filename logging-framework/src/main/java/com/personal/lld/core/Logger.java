@@ -4,13 +4,8 @@ import com.personal.lld.appender.LogAppender;
 
 import java.util.List;
 
-/**
- * Main interface for logging operations.
- * Provides methods for logging at different levels and managing appenders and filters.
- */
-public interface Logger {
+public interface Logger extends AutoCloseable {
 
-    // Logging methods for different levels
     void debug(String message);
 
     void info(String message);
@@ -21,16 +16,24 @@ public interface Logger {
 
     void fatal(String message);
 
-    // Generic logging method
+    void error(String message, Throwable throwable);
+
     void log(LogLevel level, String message);
 
-    // Configuration methods
+    void log(LogLevel level, String message, Throwable throwable);
+
     void setLevel(LogLevel level);
+
+    LogLevel getLevel();
+
+    String getName();
 
     void addAppender(LogAppender appender);
 
+    void removeAppender(LogAppender appender);
 
-    // Getter methods
     List<LogAppender> getAppenders();
 
+    @Override
+    void close();
 }

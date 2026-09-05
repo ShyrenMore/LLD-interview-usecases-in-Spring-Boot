@@ -3,87 +3,82 @@ package com.personal.lld.appender;
 import com.personal.lld.core.LogLevel;
 import com.personal.lld.core.LogMessage;
 import com.personal.lld.formatter.LogFormatter;
-import com.personal.lld.formatter.SimpleFormatter;
 
-import java.io.FileWriter;
+import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Objects;
 
 /**
- * Appender that writes log messages to a file.
+ * File appender with append semantics and explicit resource lifecycle.
  */
-public class FileAppender implements LogAppender {
-    private LogLevel level;
-    private LogFormatter formatter;
-    private String filePath;
-    private PrintWriter writer;
+public class FileAppender extends AbstractAppender {
+
+    private final Path filePath;
+    private final BufferedWriter writer;
+    private final Object writeLock = new Object();
 
     public FileAppender(String filePath) {
-        this(filePath, LogLevel.DEBUG);
+        this(Path.of(filePath), LogLevel.DEBUG, null);
     }
 
     public FileAppender(String filePath, LogLevel level) {
-        this.filePath = filePath;
-        this.level = level;
-        this.formatter = new SimpleFormatter();
-        initializeWriter();
+        this(Path.of(filePath), level, null);
     }
 
-    private void initializeWriter() {
+    public FileAppender(Path filePath, LogLevel level, LogFormatter formatter) {
+        super(level, formatter != null ? formatter : new com.personal.lld.formatter.SimpleFormatter());
+        this.filePath = Objects.requireNonNull(filePath, "filePath");
+
         try {
-            this.writer = new PrintWriter(new FileWriter(filePath, true), true);
+            Path parent = filePath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+
+            this.writer = Files.newBufferedWriter(
+                    filePath,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND
+            );
         } catch (IOException e) {
-            System.err.println("Failed to initialize FileAppender for " + filePath + ": " + e.getMessage());
+            throw new IllegalStateException("Failed to initialize FileAppender for " + filePath, e);
         }
     }
 
     @Override
     public void append(LogMessage message) {
-        if (!isEnabled(message.getLevel()) || writer == null) {
+        if (!isEnabled(message.getLevel())) {
             return;
         }
 
-        try {
-            String formattedMessage = formatter.format(message);
-            writer.println(formattedMessage);
-            writer.flush();
-        } catch (Exception e) {
-            System.err.println("Failed to write to file " + filePath + ": " + e.getMessage());
+        synchronized (writeLock) {
+            try {
+                writer.write(getFormatter().format(message));
+                writer.newLine();
+                writer.flush();
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to write log to " + filePath, e);
+            }
         }
     }
 
-    @Override
-    public void setLevel(LogLevel level) {
-        this.level = level;
-    }
-
-    @Override
-    public LogLevel getLevel() {
-        return level;
-    }
-
-    @Override
-    public boolean isEnabled(LogLevel level) {
-        return level.isGreaterOrEqual(this.level);
-    }
-
-    @Override
-    public void setFormatter(LogFormatter formatter) {
-        this.formatter = formatter;
-    }
-
-    @Override
-    public LogFormatter getFormatter() {
-        return formatter;
-    }
-
-    public String getFilePath() {
+    public Path getFilePath() {
         return filePath;
     }
 
+    @Override
     public void close() {
-        if (writer != null) {
-            writer.close();
+        synchronized (writeLock) {
+            try {
+                writer.close();
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to close log file " + filePath, e);
+            }
         }
     }
 }

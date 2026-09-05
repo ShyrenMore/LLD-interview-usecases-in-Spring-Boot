@@ -1,33 +1,23 @@
 package com.personal.lld.core;
 
-
 import com.personal.lld.appender.ConsoleAppender;
 import com.personal.lld.appender.LogAppender;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Main implementation of the Logger interface.
- * Provides thread-safe logging with support for multiple appenders and filters.
+ * Thread-safe logger implementation.
+ *
+ * Logger-level filtering happens before creating LogMessage, which avoids
+ * unnecessary object allocation when the event is below the logger threshold.
  */
-@Getter
-@ToString
 public class LoggerImpl implements Logger {
 
     private final String name;
-
-    @Setter
-    private LogLevel level = LogLevel.DEBUG;
-
-    private final List<LogAppender> appenders =
-            Collections.synchronizedList(new ArrayList<>());
-
-    // ---- Constructors ----
+    private volatile LogLevel level;
+    private final CopyOnWriteArrayList<LogAppender> appenders = new CopyOnWriteArrayList<>();
 
     public LoggerImpl() {
         this("DefaultLogger", true);
@@ -38,7 +28,8 @@ public class LoggerImpl implements Logger {
     }
 
     public LoggerImpl(String name, boolean addDefaultAppender) {
-        this.name = name;
+        this.name = Objects.requireNonNull(name, "name");
+        this.level = LogLevel.DEBUG;
 
         if (addDefaultAppender) {
             addAppender(new ConsoleAppender());
@@ -47,38 +38,50 @@ public class LoggerImpl implements Logger {
 
     public LoggerImpl(String name, LogConfiguration config) {
         this(name, true);
-        this.level = config.getRootLevel();
+        if (config != null && config.getRootLevel() != null) {
+            this.level = config.getRootLevel();
+        }
     }
 
-    // ---- Logging APIs ----
-
     @Override
-    public synchronized void debug(String message) {
+    public void debug(String message) {
         log(LogLevel.DEBUG, message);
     }
 
     @Override
-    public synchronized void info(String message) {
+    public void info(String message) {
         log(LogLevel.INFO, message);
     }
 
     @Override
-    public synchronized void warning(String message) {
+    public void warning(String message) {
         log(LogLevel.WARNING, message);
     }
 
     @Override
-    public synchronized void error(String message) {
+    public void error(String message) {
         log(LogLevel.ERROR, message);
     }
 
     @Override
-    public synchronized void fatal(String message) {
+    public void error(String message, Throwable throwable) {
+        log(LogLevel.ERROR, message, throwable);
+    }
+
+    @Override
+    public void fatal(String message) {
         log(LogLevel.FATAL, message);
     }
 
     @Override
-    public synchronized void log(LogLevel level, String message) {
+    public void log(LogLevel level, String message) {
+        log(level, message, null);
+    }
+
+    @Override
+    public void log(LogLevel level, String message, Throwable throwable) {
+        Objects.requireNonNull(level, "level");
+
         if (!level.isGreaterOrEqual(this.level)) {
             return;
         }
@@ -86,7 +89,9 @@ public class LoggerImpl implements Logger {
         LogMessage logMessage = LogMessage.builder()
                 .level(level)
                 .message(message)
-                .source(getCallingClass())
+                .loggerName(name)
+                .source(getCallingSource())
+                .throwable(throwable)
                 .build();
 
         for (LogAppender appender : appenders) {
@@ -96,30 +101,50 @@ public class LoggerImpl implements Logger {
         }
     }
 
-    // ---- Mutators ----
+    @Override
+    public void setLevel(LogLevel level) {
+        this.level = Objects.requireNonNull(level, "level");
+    }
+
+    @Override
+    public LogLevel getLevel() {
+        return level;
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
 
     @Override
     public void addAppender(LogAppender appender) {
-        appenders.add(appender);
+        appenders.add(Objects.requireNonNull(appender, "appender"));
     }
 
-    // ---- Defensive Copies ----
+    @Override
+    public void removeAppender(LogAppender appender) {
+        appenders.remove(appender);
+    }
 
+    @Override
     public List<LogAppender> getAppenders() {
-        return new ArrayList<>(appenders);
+        return List.copyOf(appenders);
     }
 
-    // ---- Source Detection ----
-
-    private String getCallingClass() {
-        try {
-            StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-            if (stackTrace.length > 3) {
-                StackTraceElement e = stackTrace[3];
-                return e.getClassName() + "." + e.getMethodName();
-            }
-        } catch (Exception ignored) {
+    @Override
+    public void close() {
+        for (LogAppender appender : appenders) {
+            appender.close();
         }
-        return "Unknown";
+    }
+
+    private String getCallingSource() {
+        StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
+
+        return walker.walk(frames -> frames
+                .filter(frame -> !frame.getClassName().equals(LoggerImpl.class.getName()))
+                .findFirst()
+                .map(frame -> frame.getClassName() + "." + frame.getMethodName())
+                .orElse("Unknown"));
     }
 }

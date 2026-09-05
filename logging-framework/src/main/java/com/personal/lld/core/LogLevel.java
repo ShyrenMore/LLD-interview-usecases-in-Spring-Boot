@@ -1,8 +1,8 @@
 package com.personal.lld.core;
 
 /**
- * Represents the severity level of a log message.
- * Each level has a priority value for comparison.
+ * Severity of a log event.
+ * Higher priority means greater severity.
  */
 public enum LogLevel {
     DEBUG(1),
@@ -21,11 +21,6 @@ public enum LogLevel {
         return priority;
     }
 
-    /**
-     * Checks if this level is greater than or equal to the other level.
-     * @param other The level to compare against
-     * @return true if this level's priority >= other level's priority
-     */
     public boolean isGreaterOrEqual(LogLevel other) {
         return this.priority >= other.priority;
     }
