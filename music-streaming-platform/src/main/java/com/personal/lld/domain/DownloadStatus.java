@@ -1,0 +1,3 @@
+package com.personal.lld.domain;
+
+public enum DownloadStatus {PENDING, IN_PROGRESS, COMPLETED, FAILED}
