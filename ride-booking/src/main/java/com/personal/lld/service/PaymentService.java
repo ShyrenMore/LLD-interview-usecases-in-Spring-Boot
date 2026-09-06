@@ -1,0 +1,93 @@
+package com.personal.lld.service;
+
+import com.personal.lld.domain.NotificationMessage;
+import com.personal.lld.domain.PaymentStatus;
+import com.personal.lld.domain.PaymentType;
+import com.personal.lld.domain.Ride;
+import com.personal.lld.repository.RideRepository;
+import com.personal.lld.service.notification.NotificationService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PaymentService {
+
+    private final RideRepository rideRepository;
+    private final NotificationService notificationService;
+
+    private final Map<String, String> rideToPaymentId =
+            new ConcurrentHashMap<>();
+
+    public String initiatePayment(Ride ride) {
+
+        if (ride.getPaymentType() != PaymentType.PRE_PAYMENT) {
+            throw new IllegalStateException(
+                    "Only PRE_PAYMENT rides can initiate payment");
+        }
+
+        String transactionId =
+                UUID.randomUUID().toString();
+
+        ride.setPaymentStatus(PaymentStatus.PENDING);
+        ride.setPaymentId(transactionId);
+
+        rideRepository.save(ride);
+        rideToPaymentId.put(
+                ride.getId(),
+                transactionId);
+
+        log.info(
+                "Payment initiated. rideId={}, transactionId={}",
+                ride.getId(),
+                transactionId);
+
+        return transactionId;
+    }
+
+    public Ride handlePaymentCallback(
+            String transactionId,
+            PaymentStatus status) {
+
+        String rideId = findRideId(transactionId);
+
+        rideToPaymentId.remove(rideId);
+
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Ride not found for transaction "
+                                        + transactionId));
+
+        ride.setPaymentStatus(status);
+        rideRepository.save(ride);
+
+        notificationService.send(
+                new NotificationMessage(
+                        ride.getRiderId(),
+                        "Payment " + status,
+                        "Payment status for ride "
+                                + ride.getId()
+                                + " is " + status));
+
+        return ride;
+    }
+
+    private String findRideId(String transactionId) {
+        return rideToPaymentId.entrySet().stream()
+                .filter(entry ->
+                        entry.getValue().equals(transactionId))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Unknown transaction id "
+                                        + transactionId));
+    }
+}
